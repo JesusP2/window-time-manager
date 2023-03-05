@@ -7,9 +7,10 @@ from datetime import datetime
 import asyncio
 from typing import Optional
 from backend.active_window import get_active_window
+from fastapi.staticfiles import StaticFiles
 
 TIME_INTERVAL = 1
-MAX_IDLE_TIME = 120
+MAX_IDLE_TIME = 600
 
 app = FastAPI()
 
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.websocket("/ws")
 async def websocket(websocket: WebSocket):
