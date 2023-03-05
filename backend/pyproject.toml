@@ -6,6 +6,9 @@ authors = ["JesusP2 <jesus_perez99@hotmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+fastapi = "^0.92.0"
+uvicorn = {extras = ["standard"], version = "^0.20.0"}
+pynput = "^1.7.6"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
