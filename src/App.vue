@@ -1,29 +1,30 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, ref } from "vue";
 import { z } from "zod";
 import { activeWindowSchema } from "./lib/schema";
 import { formatTime } from "./lib/time-formatter";
 
 type ActiveWindow = z.infer<typeof activeWindowSchema>;
-const windows = reactive<ActiveWindow[]>(
+const windows = ref<ActiveWindow[]>(
   localStorage.getItem("data") ? JSON.parse(localStorage.getItem("data")!) : []
 );
-const windowsSorted = computed(() =>
-  [...windows].sort((a, b) => (a.time < b.time ? 1 : -1))
-);
+// const windowsSorted = computed(() =>
+//   [...windows.value].sort((a, b) => (a.time < b.time ? 1 : -1))
+// );
 
 const socket = new WebSocket("ws://localhost:8080");
 socket.addEventListener("message", async ({ data }: MessageEvent<string>) => {
   const parsedData = activeWindowSchema.parse(JSON.parse(data));
-  const idx = windows.findIndex((win) => win.title === parsedData.title);
+  const idx = windows.value.findIndex((win) => win.title === parsedData.title);
   if (idx >= 0) {
     for (let i = 0; i < parsedData.time; i++) {
-      windows[idx].time++;
+      windows.value[idx].time++;
+      windows.value.sort((a, b) => (a.time < b.time ? 1 : -1))
       localStorage.setItem("data", JSON.stringify(windows));
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   } else {
-    windows.push(parsedData);
+    windows.value.push(parsedData);
     localStorage.setItem("data", JSON.stringify(windows));
   }
 });
@@ -34,16 +35,16 @@ socket.addEventListener("error", async (error) => {
 
 <template>
   <div
-    class="max-w-lg w-full rounded-lg border-neutral-800 h-96 flex flex-col text-neutral-300 mx-auto border mt-4"
+    class="max-w-2xl w-full rounded-lg border-neutral-800 h-96 flex flex-col text-neutral-300 mx-auto border mt-4"
   >
     <div class="h-8 bg-neutral-800 w-full pt-1 pl-4">ACTIVITY</div>
-    <div class="w-full flex-1 bg-neutral-900 px-4 my-4 overflow-y-scroll">
-      <div v-for="item of windowsSorted" class="flex" :key="item.title">
-        <div class="w-24">{{ formatTime(item.time) }}</div>
-        <div class="w-24">{{ item.app }}</div>
-        <div class="w-80 truncate">{{ item.title }}</div>
-      </div>
-    </div>
+    <ul v-auto-animate class="w-full flex-1 bg-neutral-900 px-4 my-4 overflow-y-scroll">
+      <li v-for="item of windows" class="flex" :key="item.title">
+        <div class="w-24 truncate">{{ formatTime(item.time) }}</div>
+        <div class="w-24 truncate">{{ item.app }}</div>
+        <div class="max-w-[435px] truncate">{{ item.title }}</div>
+      </li>
+    </ul>
   </div>
 </template>
 
