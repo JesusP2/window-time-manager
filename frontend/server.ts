@@ -1,6 +1,22 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import activeWindow from 'active-win'
 import { activeWindowSchema } from './src/lib/schema'
+import robot from 'robotjs'
+// import process from 'node:process'
+import { Readable } from 'stream';
+
+const inStream = new Readable({
+  read() { console.log('in reading'); }
+});
+
+inStream.on('data', (...ar) => console.log(ar))
+inStream.on('keypress', (...ar) => {
+  console.log(ar)
+});
+
+console.log(robot.getMousePos())
+
+process.stdin.on('keypr ess', (idk) => console.log(idk))
 
 const wss = new WebSocketServer({ port: 8080 });
 
