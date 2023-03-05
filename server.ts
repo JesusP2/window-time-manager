@@ -15,7 +15,7 @@ wss.on('connection', function connection(ws) {
       const windowData = await activeWindow()
       try {
         const data = activeWindowSchema.parse({
-          title: windowData?.title,
+          title: windowData?.title[0] === '(' ? windowData.title.split(' ').slice(1).join(' ') : windowData?.title,
           app: windowData?.owner.name,
           time: interval,
         })
