@@ -48,7 +48,6 @@ async def websocket(websocket: WebSocket):
     while True:
         title, app = get_active_window()
         data = {"time": TIME_INTERVAL, "title": title, "app": app}
-        print(data)
         if datetime.timestamp(datetime.now()) - idle["idle_time"] < MAX_IDLE_TIME:
             await websocket.send_json(data)
         await asyncio.sleep(TIME_INTERVAL)
