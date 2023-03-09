@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { z } from "zod";
-import { activeWindowSchema } from "./lib/schema";
+import { sessionSchema, windowSchema } from "./lib/schema";
+import type { STATE } from "./lib/schema";
 import { formatTime } from "./lib/time-formatter";
 import Groups from "./components/groups.vue";
 
 document.documentElement.setAttribute("data-theme", "dracula");
 
-type ActiveWindow = z.infer<typeof activeWindowSchema>;
-const windows = ref<ActiveWindow[]>(
-  localStorage.getItem("data") ? JSON.parse(localStorage.getItem("data")!) : []
-);
+const state = ref<STATE>("Inactive");
+
+type ActiveWindow = z.infer<typeof windowSchema>;
+type Session = z.infer<typeof sessionSchema>;
+const session = ref<Session>({
+  id: "0",
+  name: "",
+  start: 0,
+  end: 0,
+  duration: 0,
+  windows: [],
+});
+
 const groups = ref<string[]>(
   localStorage.getItem("groups")
     ? JSON.parse(localStorage.getItem("groups")!)
@@ -19,7 +29,7 @@ const groups = ref<string[]>(
 
 const groupedWindows = computed(() => {
   const data: { [K: string]: ActiveWindow } = {};
-  windows.value.forEach((window) => {
+  session.value.windows.forEach((window) => {
     let isWindowGrouped = false;
     groups.value.forEach((group) => {
       const groupLE = group.toLowerCase();
@@ -45,36 +55,79 @@ const groupedWindows = computed(() => {
 
   return Object.values(data).sort((a, b) => (a.time < b.time ? 1 : -1));
 });
+const timeout = ref<any>(null);
 const socket = new WebSocket("ws://localhost:8000/ws");
+
 socket.addEventListener("message", async ({ data }: MessageEvent<string>) => {
-  const parsedData = activeWindowSchema.parse(JSON.parse(data));
-  const idx = windows.value.findIndex((win) => win.title === parsedData.title);
-  if (idx >= 0) {
-    windows.value[idx].time++;
-    windows.value.sort((a, b) => (a.time < b.time ? 1 : -1));
-    localStorage.setItem("data", JSON.stringify(windows.value));
-  } else {
-    windows.value.push(parsedData);
-    localStorage.setItem("data", JSON.stringify(windows.value));
+  const parsedData = JSON.parse(data);
+  switch (parsedData.STATE) {
+    case "START SESSION":
+      session.value = parsedData.payload;
+      break;
+    case "FINISH SESSION":
+      session.value.windows = [];
+      break;
+    case "DATA":
+      const idx = session.value.windows.findIndex(
+        (win) => win.title === parsedData.payload.title
+      );
+      if (idx >= 0) {
+        session.value.windows[idx].time++;
+        session.value.windows.sort((a, b) => (a.time < b.time ? 1 : -1));
+      } else {
+        session.value.windows.push(parsedData.payload);
+      }
+      break;
   }
 });
-
 socket.addEventListener("error", async (error) => {
   console.error(error);
 });
 
 function createGroup(name: string) {
   groups.value.push(name);
-  localStorage.setItem("groups", JSON.stringify(groups.value));
 }
 
 function removeGroup(name: string) {
   groups.value = groups.value.filter((group) => group !== name);
-  localStorage.setItem("groups", JSON.stringify(groups.value));
+}
+
+function changeState() {
+  switch (state.value) {
+    case "Active":
+      if (timeout.value !== null) {
+        clearInterval(timeout.value);
+      }
+      socket.send("FINISH SESSION");
+      state.value = "Inactive";
+      break;
+    case "Inactive":
+      timeout.value = setInterval(() => {
+        socket.send("DATA");
+      }, 1000);
+      socket.send("START SESSION");
+      state.value = "Active";
+      break;
+  }
+}
+
+function pauseState() {
+  socket.send("PAUSED")
+  state.value = "Paused"
 }
 </script>
 
 <template>
+  <button class="btn" @click="changeState">
+    {{ state === "Active" ? "Finish session" : "Start session" }}
+  </button>
+  <!-- <button -->
+  <!--   class="btn" -->
+  <!--   v-if="state === 'Active'" -->
+  <!--   @click="pauseState" -->
+  <!-- > -->
+  <!--   Pause -->
+  <!-- </button> -->
   <div
     class="max-w-2xl w-full rounded-lg border-neutral-700 h-96 flex flex-col text-neutral-300 mx-auto border mt-4 bg-base-300"
   >
@@ -100,33 +153,3 @@ function removeGroup(name: string) {
     :groups="groups"
   />
 </template>
-
-<style>
-#customers {
-  font-family: Arial, Helvetica, sans-serif;
-  border-collapse: collapse;
-  width: 100%;
-}
-
-#customers td,
-#customers th {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-#customers tr:nth-child(even) {
-  background-color: #f2f2f2;
-}
-
-#customers tr:hover {
-  background-color: #ddd;
-}
-
-#customers th {
-  padding-top: 12px;
-  padding-bottom: 12px;
-  text-align: left;
-  background-color: #04aa6d;
-  color: white;
-}
-</style>
